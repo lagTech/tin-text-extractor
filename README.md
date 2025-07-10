@@ -5,8 +5,10 @@ A web application that uses your device's camera to extract text from tin contai
 ## Features
 
 - 📷 **Camera Integration**: Uses your device's camera to capture images of tin containers
-- 🔍 **OCR Text Extraction**: Extracts text from captured images using Tesseract.js
-- 📝 **Duplicate Detection**: Automatically prevents duplicate text entries
+- 🔍 **Enhanced OCR Text Extraction**: Advanced image preprocessing and multiple OCR attempts for better accuracy
+- 📹 **Continuous Video Mode**: Automatically captures and extracts text every 2 seconds for seamless processing
+- 📝 **Smart Duplicate Detection**: Prevents duplicate text entries with similarity checking
+- 🎯 **Image Enhancement**: Automatic contrast adjustment and text optimization
 - 💾 **Local Storage**: Saves extracted text locally in your browser
 - 📤 **Export Functionality**: Export your text list as a JSON file
 - 📱 **Mobile Responsive**: Works on both desktop and mobile devices
@@ -22,10 +24,18 @@ A web application that uses your device's camera to extract text from tin contai
 
 ### Extracting Text
 
+#### Manual Mode:
 1. **Position the Tin**: Hold your tin container in front of the camera, positioning it within the green capture frame
 2. **Capture Image**: Click "Capture & Extract" to take a photo and extract text
 3. **Review Results**: The extracted text will appear in the list on the right side
 4. **Continue**: Repeat for additional tin containers
+
+#### Continuous Mode (Recommended for Multiple Tins):
+1. **Start Continuous Mode**: Click "Start Continuous Mode" button
+2. **Show Tins**: Simply hold each tin container in front of the camera
+3. **Automatic Processing**: The app will automatically capture and extract text every 2 seconds
+4. **Smart Detection**: Only new or different text will be added to the list
+5. **Stop When Done**: Click "Stop Continuous Mode" when finished
 
 ### Managing Your Text List
 
