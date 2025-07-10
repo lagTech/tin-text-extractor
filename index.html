@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tin Text Extractor</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://unpkg.com/tesseract.js@v4.1.1/dist/tesseract.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Tin Text Extractor</h1>
+            <p>Capture tin containers to extract and store text</p>
+        </header>
+
+        <div class="main-content">
+            <div class="camera-section">
+                <div class="camera-container">
+                    <video id="video" autoplay playsinline></video>
+                    <canvas id="canvas" style="display: none;"></canvas>
+                    <div class="camera-overlay">
+                        <div class="capture-area"></div>
+                        <p class="capture-hint">Position tin container within the frame</p>
+                    </div>
+                </div>
+                
+                <div class="camera-controls">
+                    <button id="startCamera" class="btn btn-primary">Start Camera</button>
+                    <button id="captureBtn" class="btn btn-success" disabled>Capture & Extract</button>
+                    <button id="stopCamera" class="btn btn-secondary" disabled>Stop Camera</button>
+                </div>
+
+                <div class="captured-image" id="capturedImage" style="display: none;">
+                    <h3>Captured Image:</h3>
+                    <img id="previewImage" alt="Captured tin container">
+                </div>
+            </div>
+
+            <div class="text-section">
+                <div class="extraction-status">
+                    <div id="loadingIndicator" class="loading" style="display: none;">
+                        <div class="spinner"></div>
+                        <p>Extracting text...</p>
+                    </div>
+                    <div id="extractionResult" class="result" style="display: none;"></div>
+                </div>
+
+                <div class="text-list">
+                    <h3>Extracted Text List</h3>
+                    <div class="list-controls">
+                        <button id="clearList" class="btn btn-danger">Clear All</button>
+                        <button id="exportList" class="btn btn-info">Export List</button>
+                    </div>
+                    <div id="textList" class="text-items">
+                        <p class="empty-state">No text extracted yet. Start by capturing a tin container.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html> 
