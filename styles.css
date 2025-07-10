@@ -115,6 +115,33 @@ header p {
     font-size: 0.9rem;
 }
 
+.capture-tips {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: rgba(0,0,0,0.8);
+    color: white;
+    padding: 15px;
+    border-radius: 10px;
+    font-size: 0.8rem;
+    max-width: 200px;
+    backdrop-filter: blur(10px);
+}
+
+.capture-tips p {
+    margin: 0 0 8px 0;
+    font-weight: bold;
+}
+
+.capture-tips ul {
+    margin: 0;
+    padding-left: 15px;
+}
+
+.capture-tips li {
+    margin-bottom: 4px;
+}
+
 .camera-controls {
     display: flex;
     gap: 10px;

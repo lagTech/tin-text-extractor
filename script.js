@@ -20,6 +20,7 @@ class TinTextExtractor {
         this.lastExtractedText = '';
         this.consecutiveFailures = 0;
         this.maxConsecutiveFailures = 5;
+        this.minConfidence = 60; // Minimum confidence threshold
         
         this.initializeEventListeners();
         this.loadSavedTexts();
@@ -66,7 +67,7 @@ class TinTextExtractor {
     startContinuousCapture() {
         this.continuousInterval = setInterval(() => {
             this.captureAndExtract(true);
-        }, 2000); // Capture every 2 seconds
+        }, 3000); // Capture every 3 seconds
     }
     
     stopContinuousCapture() {
@@ -157,25 +158,26 @@ class TinTextExtractor {
         }
         
         try {
+            // Check if image has enough text-like content
+            if (!this.hasTextContent(canvas)) {
+                if (!isContinuous) {
+                    this.showResult('No text detected in image. Please ensure text is clearly visible.', 'error');
+                }
+                this.consecutiveFailures++;
+                return;
+            }
+            
             // Enhanced image preprocessing
             const processedCanvas = this.preprocessImage(canvas);
             
-            // Multiple OCR attempts with different settings
-            const results = await Promise.all([
-                this.performOCR(processedCanvas, 'eng', { psm: 6 }), // Assume uniform block of text
-                this.performOCR(processedCanvas, 'eng', { psm: 8 }), // Single word
-                this.performOCR(processedCanvas, 'eng', { psm: 13 }), // Raw line
-                this.performOCR(processedCanvas, 'eng', { psm: 3 })  // Fully automatic page segmentation
-            ]);
+            // Single, high-quality OCR attempt with confidence checking
+            const result = await this.performOCRWithConfidence(processedCanvas);
             
-            // Combine and clean results
-            const combinedText = this.combineOCRResults(results);
-            
-            if (combinedText) {
-                this.processExtractedText(combinedText, isContinuous);
+            if (result.text && result.confidence >= this.minConfidence) {
+                this.processExtractedText(result.text, isContinuous, result.confidence);
             } else {
                 if (!isContinuous) {
-                    this.showResult('No text detected. Try adjusting lighting or positioning.', 'error');
+                    this.showResult(`Text detected but confidence too low (${result.confidence}%). Try better lighting or positioning.`, 'error');
                 }
                 this.consecutiveFailures++;
             }
@@ -190,6 +192,28 @@ class TinTextExtractor {
                 this.showLoading(false);
             }
         }
+    }
+    
+    hasTextContent(canvas) {
+        const ctx = canvas.getContext('2d');
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+        
+        let edgePixels = 0;
+        let totalPixels = data.length / 4;
+        
+        // Simple edge detection to find text-like structures
+        for (let i = 0; i < data.length; i += 4) {
+            const gray = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+            
+            // Count pixels that could be part of text (not pure white or black)
+            if (gray > 50 && gray < 200) {
+                edgePixels++;
+            }
+        }
+        
+        const textRatio = edgePixels / totalPixels;
+        return textRatio > 0.01; // At least 1% of pixels should be text-like
     }
     
     preprocessImage(canvas) {
@@ -209,11 +233,11 @@ class TinTextExtractor {
         
         // Apply image enhancements
         for (let i = 0; i < data.length; i += 4) {
-            // Convert to grayscale and enhance contrast
+            // Convert to grayscale
             const gray = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
             
-            // Apply threshold for better text recognition
-            const threshold = 128;
+            // Apply adaptive thresholding
+            const threshold = this.calculateAdaptiveThreshold(data, i, processedCanvas.width);
             const binary = gray > threshold ? 255 : 0;
             
             data[i] = binary;     // Red
@@ -228,86 +252,104 @@ class TinTextExtractor {
         return processedCanvas;
     }
     
-    async performOCR(canvas, lang, options = {}) {
+    calculateAdaptiveThreshold(data, pixelIndex, width) {
+        // Simple local threshold calculation
+        const x = (pixelIndex / 4) % width;
+        const y = Math.floor((pixelIndex / 4) / width);
+        
+        let sum = 0;
+        let count = 0;
+        
+        // Calculate local average in 5x5 neighborhood
+        for (let dy = -2; dy <= 2; dy++) {
+            for (let dx = -2; dx <= 2; dx++) {
+                const nx = x + dx;
+                const ny = y + dy;
+                
+                if (nx >= 0 && nx < width && ny >= 0 && ny < data.length / (4 * width)) {
+                    const idx = (ny * width + nx) * 4;
+                    const gray = (data[idx] * 0.299 + data[idx + 1] * 0.587 + data[idx + 2] * 0.114);
+                    sum += gray;
+                    count++;
+                }
+            }
+        }
+        
+        const localAverage = sum / count;
+        return localAverage - 10; // Slightly lower than local average
+    }
+    
+    async performOCRWithConfidence(canvas) {
         try {
-            const result = await Tesseract.recognize(canvas, lang, {
-                ...options,
+            const result = await Tesseract.recognize(canvas, 'eng', {
+                psm: 6, // Assume uniform block of text
                 logger: m => {
                     if (m.status === 'recognizing text') {
                         console.log(`OCR Progress: ${Math.round(m.progress * 100)}%`);
                     }
                 }
             });
-            return result.data.text.trim();
+            
+            // Extract confidence from result
+            const confidence = this.calculateConfidence(result);
+            const text = result.data.text.trim();
+            
+            console.log(`OCR Result: "${text}" (Confidence: ${confidence}%)`);
+            
+            return { text, confidence };
         } catch (error) {
             console.error('OCR attempt failed:', error);
-            return '';
+            return { text: '', confidence: 0 };
         }
     }
     
-    combineOCRResults(results) {
-        // Filter out empty results
-        const validResults = results.filter(text => text && text.length > 0);
-        
-        if (validResults.length === 0) {
-            return '';
+    calculateConfidence(result) {
+        if (!result.data.words || result.data.words.length === 0) {
+            return 0;
         }
         
-        // If we have multiple results, choose the best one
-        if (validResults.length === 1) {
-            return validResults[0];
+        // Calculate average confidence from all detected words
+        const totalConfidence = result.data.words.reduce((sum, word) => {
+            return sum + (word.confidence || 0);
+        }, 0);
+        
+        const averageConfidence = totalConfidence / result.data.words.length;
+        
+        // Additional confidence factors
+        let confidence = averageConfidence;
+        
+        // Penalize if too many words have low confidence
+        const lowConfidenceWords = result.data.words.filter(word => (word.confidence || 0) < 50).length;
+        const lowConfidenceRatio = lowConfidenceWords / result.data.words.length;
+        
+        if (lowConfidenceRatio > 0.5) {
+            confidence *= 0.7; // Reduce confidence if more than 50% of words are low confidence
         }
         
-        // Score results based on length and character variety
-        const scoredResults = validResults.map(text => ({
-            text,
-            score: this.scoreTextQuality(text)
-        }));
+        // Penalize very short text (likely noise)
+        if (result.data.text.trim().length < 3) {
+            confidence *= 0.5;
+        }
         
-        // Sort by score and return the best result
-        scoredResults.sort((a, b) => b.score - a.score);
-        return scoredResults[0].text;
+        return Math.round(confidence);
     }
     
-    scoreTextQuality(text) {
-        let score = 0;
-        
-        // Prefer longer text (but not too long)
-        if (text.length > 3 && text.length < 100) {
-            score += text.length * 0.1;
-        }
-        
-        // Prefer text with mixed case
-        if (/[a-z]/.test(text) && /[A-Z]/.test(text)) {
-            score += 10;
-        }
-        
-        // Prefer text with numbers
-        if (/\d/.test(text)) {
-            score += 5;
-        }
-        
-        // Penalize text with too many special characters
-        const specialCharRatio = (text.match(/[^a-zA-Z0-9\s]/g) || []).length / text.length;
-        if (specialCharRatio < 0.3) {
-            score += 5;
-        }
-        
-        // Penalize text that's all uppercase (likely noise)
-        if (text === text.toUpperCase() && text.length > 10) {
-            score -= 5;
-        }
-        
-        return score;
-    }
-    
-    processExtractedText(text, isContinuous = false) {
+    processExtractedText(text, isContinuous = false, confidence = 0) {
         // Clean up the text
         const cleanedText = this.cleanText(text);
         
         if (!cleanedText) {
             if (!isContinuous) {
                 this.showResult('No valid text found after cleaning.', 'error');
+            }
+            this.consecutiveFailures++;
+            return;
+        }
+        
+        // Additional validation to prevent random text
+        if (!this.isValidText(cleanedText)) {
+            if (!isContinuous) {
+                this.showResult('Detected text appears to be invalid or random. Please try again.', 'error');
             }
             this.consecutiveFailures++;
             return;
@@ -338,6 +380,7 @@ class TinTextExtractor {
             id: Date.now(),
             text: cleanedText,
             timestamp: new Date().toLocaleString(),
+            confidence: confidence,
             imageData: this.canvas.toDataURL('image/jpeg')
         };
         
@@ -349,10 +392,32 @@ class TinTextExtractor {
         this.consecutiveFailures = 0;
         
         if (!isContinuous) {
-            this.showResult(`Successfully extracted: "${cleanedText}"`, 'success');
+            this.showResult(`Successfully extracted: "${cleanedText}" (Confidence: ${confidence}%)`, 'success');
         } else {
-            this.showResult(`Auto-extracted: "${cleanedText}"`, 'success');
+            this.showResult(`Auto-extracted: "${cleanedText}" (Confidence: ${confidence}%)`, 'success');
         }
+    }
+    
+    isValidText(text) {
+        // Check for common OCR artifacts and random text patterns
+        if (text.length < 2) return false;
+        
+        // Check for repeated characters (common OCR error)
+        const repeatedChars = /(.)\1{3,}/;
+        if (repeatedChars.test(text)) return false;
+        
+        // Check for random character sequences
+        const randomPatterns = /[aeiou]{4,}|[bcdfghjklmnpqrstvwxyz]{6,}/;
+        if (randomPatterns.test(text.toLowerCase())) return false;
+        
+        // Check for too many special characters
+        const specialCharRatio = (text.match(/[^a-zA-Z0-9\s]/g) || []).length / text.length;
+        if (specialCharRatio > 0.4) return false;
+        
+        // Check for all uppercase with no spaces (likely noise)
+        if (text === text.toUpperCase() && !text.includes(' ') && text.length > 5) return false;
+        
+        return true;
     }
     
     calculateTextSimilarity(text1, text2) {
@@ -414,7 +479,7 @@ class TinTextExtractor {
         textItemElement.innerHTML = `
             <div class="text-content">
                 <div>${textItem.text}</div>
-                <div class="text-timestamp">${textItem.timestamp}</div>
+                <div class="text-timestamp">${textItem.timestamp} (Confidence: ${textItem.confidence}%)</div>
             </div>
             <button class="remove-btn" onclick="app.removeText(${textItem.id})" title="Remove">×</button>
         `;
@@ -464,7 +529,8 @@ class TinTextExtractor {
             totalItems: this.extractedTexts.length,
             texts: this.extractedTexts.map(item => ({
                 text: item.text,
-                timestamp: item.timestamp
+                timestamp: item.timestamp,
+                confidence: item.confidence
             }))
         };
         

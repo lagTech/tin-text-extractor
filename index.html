@@ -6,6 +6,7 @@
     <title>Tin Text Extractor</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://unpkg.com/tesseract.js@v4.1.1/dist/tesseract.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.18.0/dist/tf.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -24,10 +25,19 @@
                 <div class="camera-container">
                     <video id="video" autoplay playsinline></video>
                     <canvas id="canvas" style="display: none;"></canvas>
-                    <div class="camera-overlay">
-                        <div class="capture-area"></div>
-                        <p class="capture-hint">Position tin container within the frame</p>
+                                    <div class="camera-overlay">
+                    <div class="capture-area"></div>
+                    <p class="capture-hint">Position tin container within the frame</p>
+                    <div class="capture-tips">
+                        <p>💡 Tips for better accuracy:</p>
+                        <ul>
+                            <li>Ensure good lighting</li>
+                            <li>Hold camera steady</li>
+                            <li>Text should be clearly visible</li>
+                            <li>Avoid shadows and glare</li>
+                        </ul>
                     </div>
+                </div>
                 </div>
                 
                 <div class="camera-controls">
